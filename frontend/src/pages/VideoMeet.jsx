@@ -27,7 +27,7 @@ const peerConfig = {
 
 let peers = {};
 
-export default function VideoMeetComponent() {
+export default function VideoMeet() {
   const socketRef = useRef();
   const localVideoRef = useRef();
   const socketIdRef = useRef();
@@ -39,7 +39,7 @@ export default function VideoMeetComponent() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
 
-  const [videos, setVideos] = useState([]);
+  const [videos, setVideos] = useState([]); // [{ id, stream }]
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [newMessages, setNewMessages] = useState(0);
@@ -62,9 +62,10 @@ export default function VideoMeetComponent() {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
+      console.log("Audio tracks:", stream.getAudioTracks());
     } catch (err) {
-      console.error("Camera access error:", err);
-      setSnackbar({ open: true, msg: "Camera access denied or unavailable" });
+      console.error("Camera/Mic access error:", err);
+      setSnackbar({ open: true, msg: "Camera/Mic access denied or unavailable" });
     }
   };
 
@@ -78,7 +79,16 @@ export default function VideoMeetComponent() {
       socketRef.current.emit("join-call", roomId);
     });
 
-    socketRef.current.on("user-joined", (ids) => ids.forEach(createPeer));
+    // Server may emit (newUserId, allIds) or just an array
+    socketRef.current.on("user-joined", (newUserId, allIds) => {
+      const ids = Array.isArray(allIds)
+        ? allIds
+        : Array.isArray(newUserId)
+        ? newUserId
+        : [newUserId];
+      ids.forEach(createPeer);
+    });
+
     socketRef.current.on("signal", handleSignal);
 
     socketRef.current.on("user-left", (id) => {
@@ -125,7 +135,7 @@ export default function VideoMeetComponent() {
 
   const handleSignal = async ({ from, data }) => {
     if (from === socketIdRef.current) return;
-    let peer = peers[from] || createPeer(from);
+    const peer = peers[from] || createPeer(from);
 
     if (data.sdp) {
       await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -136,7 +146,13 @@ export default function VideoMeetComponent() {
       }
     }
 
-    if (data.ice) await peer.addIceCandidate(new RTCIceCandidate(data.ice));
+    if (data.ice) {
+      try {
+        await peer.addIceCandidate(new RTCIceCandidate(data.ice));
+      } catch (err) {
+        console.error("Failed to add ICE candidate:", err);
+      }
+    }
   };
 
   // ---------------- CONTROLS ----------------
@@ -161,14 +177,14 @@ export default function VideoMeetComponent() {
 
     Object.values(peers).forEach((peer) => {
       const sender = peer.getSenders().find((s) => s.track?.kind === "video");
-      sender.replaceTrack(screenTrack);
+      if (sender) sender.replaceTrack(screenTrack);
     });
 
     screenTrack.onended = () => {
       const videoTrack = window.localStream.getVideoTracks()[0];
       Object.values(peers).forEach((peer) => {
         const sender = peer.getSenders().find((s) => s.track?.kind === "video");
-        sender.replaceTrack(videoTrack);
+        if (sender) sender.replaceTrack(videoTrack);
       });
       setScreenSharing(false);
     };
@@ -264,17 +280,26 @@ export default function VideoMeetComponent() {
         </Badge>
       </div>
 
-      {/* Remote videos */}
+      {/* Remote videos + audio */}
       <div className={styles.conferenceView}>
         {videos.map((v) => (
-          <video
-            key={v.id}
-            autoPlay
-            playsInline
-            ref={(ref) => {
-              if (ref) ref.srcObject = v.stream;
-            }}
-          />
+          <div key={v.id} className={styles.remoteContainer}>
+            <video
+              autoPlay
+              playsInline
+              className={styles.remoteVideo}
+              ref={(ref) => {
+                if (ref) ref.srcObject = v.stream;
+              }}
+            />
+            <audio
+              autoPlay
+              playsInline
+              ref={(ref) => {
+                if (ref) ref.srcObject = v.stream;
+              }}
+            />
+          </div>
         ))}
       </div>
     </div>
