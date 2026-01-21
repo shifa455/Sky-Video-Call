@@ -1,6 +1,4 @@
-
-
-// // backend/src/Controllers/socketManager.js
+// backend/src/Controllers/socketManager.js
 import { Server } from "socket.io";
 
 let connections = {};
@@ -11,7 +9,7 @@ export const connectToSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: [
-        "https://sky-video-call-frontend.onrender.com", // your frontend
+        "https://sky-video-call-frontend.onrender.com", // frontend URL
       ],
       methods: ["GET", "POST"],
       credentials: true,
@@ -27,7 +25,7 @@ export const connectToSocket = (server) => {
       connections[roomId].push(socket.id);
       timeOnline[socket.id] = new Date();
 
-      // Notify everyone in the room about the new user
+      // Notify all users in the room about the new user
       connections[roomId].forEach((id) => {
         io.to(id).emit("user-joined", socket.id, connections[roomId]);
       });

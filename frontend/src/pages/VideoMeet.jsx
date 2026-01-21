@@ -57,6 +57,7 @@ export default function VideoMeetComponent() {
         autoGainControl: true,
       },
     });
+
     window.localStream = stream;
     localVideoRef.current.srcObject = stream;
   };
@@ -65,7 +66,7 @@ export default function VideoMeetComponent() {
   const connectSocket = () => {
     socketRef.current = io(server);
 
-    const roomId = window.location.pathname.slice(1); // only path, not full URL
+    const roomId = window.location.pathname.slice(1);
 
     socketRef.current.on("connect", () => {
       socketIdRef.current = socketRef.current.id;
@@ -99,7 +100,9 @@ export default function VideoMeetComponent() {
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    window.localStream.getTracks().forEach((track) => peer.addTrack(track, window.localStream));
+    window.localStream.getTracks().forEach((track) =>
+      peer.addTrack(track, window.localStream)
+    );
 
     peer.onicecandidate = (e) => {
       if (e.candidate) socketRef.current.emit("signal", id, { ice: e.candidate });
@@ -154,34 +157,26 @@ export default function VideoMeetComponent() {
   };
 
   const toggleScreen = async () => {
-    if (!screenSharing) {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      const screenTrack = screenStream.getVideoTracks()[0];
+    if (screenSharing) return;
 
-      Object.values(peers).forEach((peer) => {
-        const sender = peer.getSenders().find((s) => s.track && s.track.kind === "video");
-        sender.replaceTrack(screenTrack);
-      });
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    const screenTrack = screenStream.getVideoTracks()[0];
 
-      screenTrack.onended = () => {
-        const videoTrack = window.localStream.getVideoTracks()[0];
-        Object.values(peers).forEach((peer) => {
-          const sender = peer.getSenders().find((s) => s.track && s.track.kind === "video");
-          sender.replaceTrack(videoTrack);
-        });
-        setScreenSharing(false);
-      };
+    Object.values(peers).forEach((peer) => {
+      const sender = peer.getSenders().find((s) => s.track && s.track.kind === "video");
+      sender.replaceTrack(screenTrack);
+    });
 
-      setScreenSharing(true);
-    } else {
-      // Stop screen sharing manually
+    screenTrack.onended = () => {
       const videoTrack = window.localStream.getVideoTracks()[0];
       Object.values(peers).forEach((peer) => {
         const sender = peer.getSenders().find((s) => s.track && s.track.kind === "video");
         sender.replaceTrack(videoTrack);
       });
       setScreenSharing(false);
-    }
+    };
+
+    setScreenSharing(true);
   };
 
   const sendMessage = () => {
@@ -270,16 +265,18 @@ export default function VideoMeetComponent() {
             key={v.id}
             autoPlay
             playsInline
-            ref={(ref) => { if (ref) ref.srcObject = v.stream; ref.muted = false; }}
+            ref={(ref) => {
+              if (ref) {
+                ref.srcObject = v.stream;
+                ref.muted = false;
+              }
+            }}
           />
         ))}
       </div>
     </div>
   );
 }
-
-
-
 
 
 // import React, { useRef, useState } from "react";
@@ -578,3 +575,5 @@ export default function VideoMeetComponent() {
 //     </div>
 //   );
 // }
+=======
+>>>>>>> ed174898ab2323b274f0557d693a0959f9a1b8fe

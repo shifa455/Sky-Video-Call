@@ -1,5 +1,3 @@
-
-
 // backend/src/server.js
 import express from "express";
 import { createServer } from "node:http";
@@ -12,10 +10,10 @@ import userRoutes from "./Routes/users.route.js";
 const app = express();
 const server = createServer(app);
 
-// Middleware
+// ------------------ MIDDLEWARE ------------------
 app.use(
   cors({
-    origin: "https://sky-video-call-frontend.onrender.com", // your frontend URL
+    origin: "https://sky-video-call-frontend.onrender.com", // frontend URL
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -24,37 +22,17 @@ app.use(
 app.use(express.json({ limit: "40kb" }));
 app.use(express.urlencoded({ limit: "40kb", extended: true }));
 
-// Routes
+// ------------------ ROUTES ------------------
 app.get("/", (req, res) => res.send("Sky Video Call Backend is running"));
+
 app.get("/health", (req, res) =>
   res.status(200).json({ status: "OK", timestamp: new Date() })
 );
 
 app.use("/api/v1/users", userRoutes);
 
-// Socket.io
+// ------------------ SOCKET.IO ------------------
 const io = connectToSocket(server);
 
-// Start server + connect DB
-const start = async () => {
-  try {
-    const connectionDb = await mongoose.connect(
-      "mongodb+srv://shifashaikh455:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/",
-      {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      }
-    );
-
-    console.log(`MongoDB Connected: ${connectionDb.connection.host}`);
-
-    server.listen(process.env.PORT || 8000, () => {
-      console.log(`Server listening on port ${process.env.PORT || 8000}`);
-    });
-  } catch (err) {
-    console.error("Error connecting to MongoDB:", err.message);
-    process.exit(1);
-  }
-};
-
-start();
+// ------------------ START SERVER + CONNECT DB ------------------
+const sta
