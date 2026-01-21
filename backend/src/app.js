@@ -1,4 +1,3 @@
-
 // backend/src/server.js
 import express from "express";
 import { createServer } from "node:http";
@@ -6,7 +5,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 
 import { connectToSocket } from "./Controllers/socketManager.js";
-import userRoutes from "./Routes/users.route.js";
+import userRoutes from "./Routes/user.routes.js";
 
 const app = express();
 const server = createServer(app);
@@ -14,7 +13,7 @@ const server = createServer(app);
 // Middleware
 app.use(
   cors({
-    origin: "https://sky-video-call-frontend.onrender.com", // your frontend URL
+    origin: "https://sky-video-call-frontend.onrender.com",
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -32,7 +31,7 @@ app.get("/health", (req, res) =>
 app.use("/api/v1/users", userRoutes);
 
 // Socket.io
-const io = connectToSocket(server);
+connectToSocket(server);
 
 // Start server + connect DB
 const start = async () => {
@@ -47,8 +46,9 @@ const start = async () => {
 
     console.log(`MongoDB Connected: ${connectionDb.connection.host}`);
 
-    server.listen(process.env.PORT || 8000, () => {
-      console.log(`Server listening on port ${process.env.PORT || 8000}`);
+    const PORT = process.env.PORT || 8000;
+    server.listen(PORT, () => {
+      console.log(`Server listening on port ${PORT}`);
     });
   } catch (err) {
     console.error("Error connecting to MongoDB:", err.message);
