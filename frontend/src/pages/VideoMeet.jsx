@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import io from "socket.io-client";
 import {
   IconButton,
@@ -44,16 +44,23 @@ export default function VideoMeetComponent() {
   const [newMessages, setNewMessages] = useState(0);
   const [showChat, setShowChat] = useState(true);
 
-  
+  /* ------------------ MEDIA ------------------ */
+
   const startLocalStream = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
     });
+
     window.localStream = stream;
     localVideoRef.current.srcObject = stream;
   };
 
+  /* ------------------ SOCKET ------------------ */
 
   const connectSocket = () => {
     socketRef.current = io(server);
@@ -82,29 +89,27 @@ export default function VideoMeetComponent() {
     });
   };
 
- 
+  /* ------------------ WEBRTC ------------------ */
+
   const createPeer = (id) => {
-    if (id === socketIdRef.current || peers[id]) return;
+    if (id === socketIdRef.current || peers[id]) return peers[id];
 
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    window.localStream.getTracks().forEach((track) =>
-      peer.addTrack(track, window.localStream)
-    );
+    window.localStream.getTracks().forEach((track) => {
+      peer.addTrack(track, window.localStream);
+    });
 
     peer.onicecandidate = (e) => {
       if (e.candidate) {
-        socketRef.current.emit("signal", id, {
-          ice: e.candidate,
-        });
+        socketRef.current.emit("signal", id, { ice: e.candidate });
       }
     };
 
     peer.ontrack = (e) => {
       setVideos((prev) => {
-        const exists = prev.find((v) => v.id === id);
-        if (exists) return prev;
+        if (prev.find((v) => v.id === id)) return prev;
         return [...prev, { id, stream: e.streams[0] }];
       });
     };
@@ -113,6 +118,8 @@ export default function VideoMeetComponent() {
       peer.setLocalDescription(offer);
       socketRef.current.emit("signal", id, { sdp: offer });
     });
+
+    return peer;
   };
 
   const handleSignal = async ({ from, data }) => {
@@ -123,6 +130,7 @@ export default function VideoMeetComponent() {
 
     if (data.sdp) {
       await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
       if (data.sdp.type === "offer") {
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
@@ -134,6 +142,8 @@ export default function VideoMeetComponent() {
       await peer.addIceCandidate(new RTCIceCandidate(data.ice));
     }
   };
+
+  /* ------------------ CONTROLS ------------------ */
 
   const toggleVideo = () => {
     window.localStream.getVideoTracks().forEach((t) => {
@@ -150,28 +160,33 @@ export default function VideoMeetComponent() {
   };
 
   const toggleScreen = async () => {
-    if (!screenSharing) {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
-      const screenTrack = screenStream.getVideoTracks()[0];
+    if (screenSharing) return;
 
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+    });
+
+    const screenTrack = screenStream.getVideoTracks()[0];
+
+    Object.values(peers).forEach((peer) => {
+      const sender = peer
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
+      sender.replaceTrack(screenTrack);
+    });
+
+    screenTrack.onended = () => {
+      const videoTrack = window.localStream.getVideoTracks()[0];
       Object.values(peers).forEach((peer) => {
-        const sender = peer.getSenders().find((s) => s.track.kind === "video");
-        sender.replaceTrack(screenTrack);
+        const sender = peer
+          .getSenders()
+          .find((s) => s.track && s.track.kind === "video");
+        sender.replaceTrack(videoTrack);
       });
+      setScreenSharing(false);
+    };
 
-      screenTrack.onended = () => {
-        const videoTrack = window.localStream.getVideoTracks()[0];
-        Object.values(peers).forEach((peer) => {
-          const sender = peer.getSenders().find((s) => s.track.kind === "video");
-          sender.replaceTrack(videoTrack);
-        });
-        setScreenSharing(false);
-      };
-
-      setScreenSharing(true);
-    }
+    setScreenSharing(true);
   };
 
   const sendMessage = () => {
@@ -191,13 +206,19 @@ export default function VideoMeetComponent() {
     connectSocket();
   };
 
- 
+  /* ------------------ UI ------------------ */
+
   if (askForUsername) {
     return (
       <div className={styles.lobby}>
         <h2>Enter your name</h2>
-        <TextField value={username} onChange={(e) => setUsername(e.target.value)} />
-        <Button variant="contained" onClick={connect}>Join</Button>
+        <TextField
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+        <Button variant="contained" onClick={connect}>
+          Join
+        </Button>
         <video ref={localVideoRef} autoPlay muted />
       </div>
     );
@@ -209,9 +230,14 @@ export default function VideoMeetComponent() {
         <div className={styles.chatRoom}>
           <h3>Chat</h3>
           {messages.map((m, i) => (
-            <p key={i}><b>{m.sender}:</b> {m.msg}</p>
+            <p key={i}>
+              <b>{m.sender}:</b> {m.msg}
+            </p>
           ))}
-          <TextField value={message} onChange={(e) => setMessage(e.target.value)} />
+          <TextField
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
           <Button onClick={sendMessage}>Send</Button>
         </div>
       )}
@@ -234,20 +260,34 @@ export default function VideoMeetComponent() {
         </IconButton>
 
         <Badge badgeContent={newMessages} color="error">
-          <IconButton onClick={() => setShowChat(!showChat)} style={{ color: "white" }}>
+          <IconButton
+            onClick={() => setShowChat(!showChat)}
+            style={{ color: "white" }}
+          >
             <Chat />
           </IconButton>
         </Badge>
       </div>
 
-      <video className={styles.meetUserVideo} ref={localVideoRef} autoPlay muted />
+      <video
+        className={styles.meetUserVideo}
+        ref={localVideoRef}
+        autoPlay
+        muted
+      />
 
       <div className={styles.conferenceView}>
         {videos.map((v) => (
           <video
             key={v.id}
-            ref={(ref) => ref && (ref.srcObject = v.stream)}
             autoPlay
+            playsInline
+            ref={(ref) => {
+              if (ref) {
+                ref.srcObject = v.stream;
+                ref.muted = false; // 🔊 AUDIO FIX
+              }
+            }}
           />
         ))}
       </div>
