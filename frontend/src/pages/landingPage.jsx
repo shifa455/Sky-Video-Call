@@ -12,11 +12,11 @@ export default function LandingPage() {
           <h2>Sky Video Call</h2>
         </div>
 
-        <div className='navList'>
-          <p style={{ cursor: 'pointer' }} onClick={() => navigate("/guest")}>Join as Guest</p>
-          <p style={{ cursor: 'pointer' }} onClick={() => navigate("/auth")}>Register</p>
-          <p style={{ cursor: 'pointer' }} onClick={() => navigate("/auth")}>Login</p>
-        </div>
+       <div className='navList'>
+        <button className="navButton" onClick={() => navigate("/guest")}>Join as Guest</button>
+        <button className="navButton" onClick={() => navigate("/auth")}>Register</button>
+        <button className="navButton" onClick={() => navigate("/auth")}>Login</button>
+      </div>
       </nav>
 
       <div className="landingMainContainer">
