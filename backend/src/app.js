@@ -1,42 +1,42 @@
-// backend/app.js
 import express from "express";
-import { createServer } from "http";
-import cors from "cors";
+import { createServer } from "node:http";
+
+import { Server } from "socket.io";
+
 import mongoose from "mongoose";
 import { connectToSocket } from "./Controllers/socketManager.js";
 
+import cors from "cors";
+import userRoutes from "./routes/users.routes.js";
+
 const app = express();
 const server = createServer(app);
+const io = connectToSocket(server);
 
-// Middleware
-app.use(cors({
-  origin: "https://sky-video-call-frontend.onrender.com",
-  methods: ["GET", "POST"],
-  credentials: true
-}));
-app.use(express.json());
 
-// Health check route
-app.get("/", (req, res) => {
-  res.send("Backend running");
-});
+app.set("port", (process.env.PORT || 8000))
+app.use(cors());
+app.use(express.json({ limit: "40kb" }));
+app.use(express.urlencoded({ limit: "40kb", extended: true }));
 
-// Attach Socket.IO
-connectToSocket(server);
+app.use("/api/v1/users", userRoutes);
 
-// Connect to MongoDB and start server
-mongoose.connect(
-  "mongodb+srv://shifashaikh455:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/",
-  { useNewUrlParser: true, useUnifiedTopology: true }
-)
-.then(() => {
-  server.listen(8000, () => {
-    console.log("Server running on port 8000");
-  });
-})
-.catch(err => {
-  console.error("MongoDB connection failed:", err.message);
-});
+const start = async () => {
+    app.set("mongo_user")
+    const connectionDb = await mongoose.connect("mongodb+srv://shifashaikh455:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/")
+
+    console.log(`MONGO Connected DB HOst: ${connectionDb.connection.host}`)
+    server.listen(app.get("port"), () => {
+        console.log("LISTENIN ON PORT 8000")
+    });
+
+
+
+}
+
+
+
+start();
 
 // backend/src/server.js
 // import express from "express";
