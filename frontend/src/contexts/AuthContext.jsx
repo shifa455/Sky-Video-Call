@@ -1,6 +1,6 @@
 import axios from "axios";
 import httpStatus from "http-status";
-import { createContext, useContext, useState } from "react";
+import { createContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import server from "../environment";
 
@@ -11,50 +11,66 @@ const client = axios.create({
 });
 
 export const AuthProvider = ({ children }) => {
-  const authContext = useContext(AuthContext);
-  const [userData, setUserData] = useState(authContext);
+  const [userData, setUserData] = useState({
+    token: localStorage.getItem("token") || null,
+  });
   const router = useNavigate();
 
+  // Register user
   const handleRegister = async (name, username, password) => {
     try {
-      const request = await client.post("/register", { name, username, password });
-      if (request.status === httpStatus.CREATED) return request.data.message;
+      const response = await client.post("/register", { name, username, password });
+      if (response.status === httpStatus.CREATED) return response.data.message;
     } catch (err) {
-      throw err;
+      throw new Error(err.response?.data?.message || "Registration failed");
     }
   };
 
+  // Login user
   const handleLogin = async (username, password) => {
     try {
-      const request = await client.post("/login", { username, password });
-      if (request.status === httpStatus.OK) {
-        localStorage.setItem("token", request.data.token);
+      const response = await client.post("/login", { username, password });
+      if (response.status === httpStatus.OK) {
+        localStorage.setItem("token", response.data.token);
+        setUserData({ token: response.data.token });
         router("/home");
       }
     } catch (err) {
-      throw err;
+      throw new Error(err.response?.data?.message || "Login failed");
     }
   };
 
+  // Get user meeting history
   const getHistoryOfUser = async () => {
     try {
-      const request = await client.get("/get_all_activity", { params: { token: localStorage.getItem("token") } });
-      return request.data;
+      const token = localStorage.getItem("token");
+      const response = await client.get("/get_all_activity", { params: { token } });
+      return response.data;
     } catch (err) {
-      throw err;
+      throw new Error(err.response?.data?.message || "Failed to fetch history");
     }
   };
 
+  // Add meeting to history
   const addToUserHistory = async (meetingCode) => {
     try {
       if (!meetingCode.trim()) throw new Error("Meeting code is required");
-      const request = await client.post("/add_to_activity", { token: localStorage.getItem("token"), meeting_code: meetingCode });
-      return request;
+      const token = localStorage.getItem("token");
+      const response = await client.post("/add_to_activity", { token, meeting_code: meetingCode });
+      return response.data;
     } catch (err) {
-      throw err;
+      throw new Error(err.response?.data?.message || "Failed to add to history");
     }
   };
 
-  const data = { userData, setUserData, addToUserHistory, getHistoryOfUser, handleRegister, handleLogin };
+  const data = {
+    userData,
+    setUserData,
+    handleRegister,
+    handleLogin,
+    getHistoryOfUser,
+    addToUserHistory,
+  };
+
   return <AuthContext.Provider value={data}>{children}</AuthContext.Provider>;
 };

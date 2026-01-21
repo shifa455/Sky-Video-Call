@@ -10,22 +10,28 @@ import userRoutes from "./Routes/users.route.js";
 const app = express();
 const server = createServer(app);
 
-// Attach socket.io
-const io = connectToSocket(server);
-
 // Middleware
-app.set("port", process.env.PORT || 8000);
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://sky-video-call-frontend.onrender.com", // your frontend URL
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+
 app.use(express.json({ limit: "40kb" }));
 app.use(express.urlencoded({ limit: "40kb", extended: true }));
 
 // Routes
-app.get("/", (req, res) => res.send("Sky Video Call Backend is running "));
+app.get("/", (req, res) => res.send("Sky Video Call Backend is running"));
 app.get("/health", (req, res) =>
   res.status(200).json({ status: "OK", timestamp: new Date() })
 );
 
 app.use("/api/v1/users", userRoutes);
+
+// Socket.io
+const io = connectToSocket(server);
 
 // Start server + connect DB
 const start = async () => {
@@ -40,8 +46,8 @@ const start = async () => {
 
     console.log(`MongoDB Connected: ${connectionDb.connection.host}`);
 
-    server.listen(app.get("port"), () => {
-      console.log(`Server listening on port ${app.get("port")}`);
+    server.listen(process.env.PORT || 8000, () => {
+      console.log(`Server listening on port ${process.env.PORT || 8000}`);
     });
   } catch (err) {
     console.error("Error connecting to MongoDB:", err.message);
@@ -50,5 +56,3 @@ const start = async () => {
 };
 
 start();
-
-

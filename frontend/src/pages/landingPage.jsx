@@ -7,15 +7,15 @@ export default function LandingPage() {
 
   return (
     <div className='landingPageContainer'>
-      <nav>
+      <nav className='navBar'>
         <div className='navHeader'>
-          <h2>Sky  Video Call</h2>
+          <h2>Sky Video Call</h2>
         </div>
 
-        <div className='navlist'>
-          <p onClick={() => navigate("/aljk23")}>Join as Guest</p>
-          <p onClick={() => navigate("/auth")}>Register</p>
-          <p onClick={() => navigate("/auth")}>Login</p>
+        <div className='navList'>
+          <p style={{ cursor: 'pointer' }} onClick={() => navigate("/guest")}>Join as Guest</p>
+          <p style={{ cursor: 'pointer' }} onClick={() => navigate("/auth")}>Register</p>
+          <p style={{ cursor: 'pointer' }} onClick={() => navigate("/auth")}>Login</p>
         </div>
       </nav>
 

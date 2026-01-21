@@ -1,3 +1,4 @@
+// frontend/src/pages/authentication.jsx
 import * as React from "react";
 import Avatar from "@mui/material/Avatar";
 import Button from "@mui/material/Button";
@@ -25,6 +26,11 @@ export default function Authentication() {
   const { handleRegister, handleLogin } = React.useContext(AuthContext);
 
   const handleAuth = async () => {
+    if (!username || (formState === 1 && !name) || !password) {
+      setError("Please fill all required fields");
+      return;
+    }
+
     try {
       setError("");
 
@@ -42,7 +48,7 @@ export default function Authentication() {
         setFormState(0);
       }
     } catch (err) {
-      setError(err);
+      setError(err.message || "Something went wrong");
     }
   };
 
@@ -57,8 +63,7 @@ export default function Authentication() {
           sm={4}
           md={7}
           sx={{
-            backgroundImage:
-              "url(https://source.unsplash.com/random?wallpapers)",
+            backgroundImage: "url(https://source.unsplash.com/random?wallpapers)",
             backgroundRepeat: "no-repeat",
             backgroundSize: "cover",
             backgroundPosition: "center",
@@ -82,13 +87,19 @@ export default function Authentication() {
             <Box sx={{ display: "flex", gap: 2 }}>
               <Button
                 variant={formState === 0 ? "contained" : "outlined"}
-                onClick={() => setFormState(0)}
+                onClick={() => {
+                  setFormState(0);
+                  setError("");
+                }}
               >
                 Sign In
               </Button>
               <Button
                 variant={formState === 1 ? "contained" : "outlined"}
-                onClick={() => setFormState(1)}
+                onClick={() => {
+                  setFormState(1);
+                  setError("");
+                }}
               >
                 Sign Up
               </Button>

@@ -13,8 +13,11 @@ function App() {
       <Router>
         <AuthProvider>
           <Routes>
+            {/* Public routes */}
             <Route path='/' element={<LandingPage />} />
             <Route path='/auth' element={<Authentication />} />
+
+            {/* Protected routes */}
             <Route path='/home' element={<HomeComponent />} />
             <Route path='/history' element={<History />} />
             <Route path='/:url' element={<VideoMeetComponent />} />
