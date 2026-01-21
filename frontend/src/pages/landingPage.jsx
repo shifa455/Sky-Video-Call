@@ -9,7 +9,7 @@ export default function LandingPage() {
     <div className='landingPageContainer'>
       <nav>
         <div className='navHeader'>
-          <h2>Apna Video Call</h2>
+          <h2>Sky  Video Call</h2>
         </div>
 
         <div className='navlist'>
@@ -24,7 +24,7 @@ export default function LandingPage() {
           <h1>
             <span style={{ color: "#FF9839" }}>Connect</span> with your loved ones
           </h1>
-          <p>Bridge the distance with Apna Video Call</p>
+          <p>Bridge the distance with Sky Video Call</p>
           <Link className="getStartedButton" to="/auth">
             Get Started
           </Link>

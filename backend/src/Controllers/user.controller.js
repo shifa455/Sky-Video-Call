@@ -1,3 +1,4 @@
+// backend/src/Controllers/user.controller.js
 import httpStatus from "http-status";
 import { User } from "../Models/user.model.js";
 import bcrypt from "bcrypt";
@@ -77,7 +78,7 @@ const addToHistory = async (req, res) => {
 
     return res.status(201).json({ message: "Meeting added to history" });
   } catch (error) {
-    return res.status(500).json({ message: "Something went wrong" });
+    return res.status(500).json({ message: `Something went wrong: ${error.message}` });
   }
 };
 
