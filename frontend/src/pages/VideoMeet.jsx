@@ -7,24 +7,28 @@ const peerConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-let peers = {};
+const peers = {};
 
 export default function VideoMeetComponent() {
-  const socketRef = useRef();
-  const localVideoRef = useRef();
-  const socketIdRef = useRef();
+  const socketRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const socketIdRef = useRef(null);
+
   const [videos, setVideos] = useState([]);
   const [joined, setJoined] = useState(false);
 
+  /* ---------- MEDIA ---------- */
   const startStream = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
+
     window.localStream = stream;
     localVideoRef.current.srcObject = stream;
   };
 
+  /* ---------- SOCKET ---------- */
   const connectSocket = () => {
     socketRef.current = io(server);
 
@@ -34,8 +38,8 @@ export default function VideoMeetComponent() {
     });
 
     socketRef.current.on("user-joined", (newUserId, users) => {
-      users.forEach(id => {
-        if (id !== socketIdRef.current) {
+      users.forEach((id) => {
+        if (id !== socketIdRef.current && !peers[id]) {
           createPeer(id, true);
         }
       });
@@ -60,34 +64,39 @@ export default function VideoMeetComponent() {
     });
 
     socketRef.current.on("user-left", (id) => {
-      setVideos(prev => prev.filter(v => v.id !== id));
       peers[id]?.close();
       delete peers[id];
+      setVideos((prev) => prev.filter((v) => v.id !== id));
     });
   };
 
-  const createPeer = async (id, createOffer) => {
+  /* ---------- WEBRTC ---------- */
+  const createPeer = (id, createOffer) => {
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    window.localStream.getTracks().forEach(track =>
-      peer.addTrack(track, window.localStream)
-    );
+    window.localStream.getTracks().forEach((track) => {
+      peer.addTrack(track, window.localStream);
+    });
 
-    peer.ontrack = (e) => {
-      setVideos(prev => [...prev, { id, stream: e.streams[0] }]);
+    peer.ontrack = (event) => {
+      setVideos((prev) => {
+        if (prev.find((v) => v.id === id)) return prev;
+        return [...prev, { id, stream: event.streams[0] }];
+      });
     };
 
-    peer.onicecandidate = (e) => {
-      if (e.candidate) {
-        socketRef.current.emit("signal", id, { ice: e.candidate });
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socketRef.current.emit("signal", id, { ice: event.candidate });
       }
     };
 
     if (createOffer) {
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      socketRef.current.emit("signal", id, { sdp: offer });
+      peer.createOffer().then((offer) => {
+        peer.setLocalDescription(offer);
+        socketRef.current.emit("signal", id, { sdp: offer });
+      });
     }
 
     return peer;
@@ -99,6 +108,7 @@ export default function VideoMeetComponent() {
     setJoined(true);
   };
 
+  /* ---------- UI ---------- */
   if (!joined) {
     return (
       <div className={styles.lobby}>
@@ -110,24 +120,26 @@ export default function VideoMeetComponent() {
 
   return (
     <div className={styles.meetVideoContainer}>
-      <video className={styles.meetUserVideo} ref={localVideoRef} autoPlay muted />
+      <video
+        className={styles.meetUserVideo}
+        ref={localVideoRef}
+        autoPlay
+        muted
+      />
 
       <div className={styles.conferenceView}>
-        {videos.map(v => (
+        {videos.map((v) => (
           <video
             key={v.id}
             autoPlay
             playsInline
-            ref={ref => ref && (ref.srcObject = v.stream)}
+            ref={(ref) => ref && (ref.srcObject = v.stream)}
           />
         ))}
       </div>
     </div>
   );
 }
-
-
-
 
 
 

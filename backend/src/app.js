@@ -1,3 +1,4 @@
+// backend/app.js
 import express from "express";
 import { createServer } from "http";
 import cors from "cors";
@@ -7,31 +8,35 @@ import { connectToSocket } from "./Controllers/socketManager.js";
 const app = express();
 const server = createServer(app);
 
+// Middleware
 app.use(cors({
   origin: "https://sky-video-call-frontend.onrender.com",
   methods: ["GET", "POST"],
   credentials: true
 }));
-
 app.use(express.json());
 
+// Health check route
 app.get("/", (req, res) => {
   res.send("Backend running");
 });
 
+// Attach Socket.IO
 connectToSocket(server);
 
+// Connect to MongoDB and start server
 mongoose.connect(
   "mongodb+srv://shifashaikh455:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/",
-).then(() => {
+  { useNewUrlParser: true, useUnifiedTopology: true }
+)
+.then(() => {
   server.listen(8000, () => {
-    console.log("Server running on 8000");
+    console.log("Server running on port 8000");
   });
+})
+.catch(err => {
+  console.error("MongoDB connection failed:", err.message);
 });
-
-
-
-
 
 // backend/src/server.js
 // import express from "express";

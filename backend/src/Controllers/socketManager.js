@@ -1,43 +1,56 @@
 import { Server } from "socket.io";
 
-const connections = {};
+let messages = {};
 
 export const connectToSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: "https://sky-video-call-frontend.onrender.com",
+      origin: ["https://sky-video-call-frontend.onrender.com"],
       methods: ["GET", "POST"],
       credentials: true,
     },
   });
 
   io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
     socket.on("join-call", (roomId) => {
-      if (!connections[roomId]) connections[roomId] = [];
-      connections[roomId].push(socket.id);
+      socket.join(roomId);
+      io.to(roomId).emit("user-joined", socket.id);
 
-      connections[roomId].forEach((id) => {
-        io.to(id).emit("user-joined", socket.id, connections[roomId]);
-      });
-    });
-
-    socket.on("signal", (toId, data) => {
-      io.to(toId).emit("signal", socket.id, data);
-    });
-
-    socket.on("disconnect", () => {
-      for (const roomId in connections) {
-        connections[roomId] = connections[roomId].filter(id => id !== socket.id);
-        connections[roomId].forEach(id =>
-          io.to(id).emit("user-left", socket.id)
-        );
+      if (messages[roomId]) {
+        messages[roomId].forEach((msg) => {
+          io.to(socket.id).emit("chat-message", msg.data, msg.sender, msg.socketId);
+        });
       }
     });
+
+    socket.on("signal", (toId, message) => {
+      io.to(toId).emit("signal", socket.id, message);
+    });
+
+    socket.on("chat-message", (data, sender) => {
+      const roomId = [...socket.rooms].find((r) => r !== socket.id);
+      if (!roomId) return;
+
+      if (!messages[roomId]) messages[roomId] = [];
+      messages[roomId].push({ data, sender, socketId: socket.id });
+      messages[roomId] = messages[roomId].slice(-50);
+
+      io.to(roomId).emit("chat-message", data, sender, socket.id);
+    });
+
+    socket.on("disconnecting", () => {
+      socket.rooms.forEach((roomId) => {
+        if (roomId !== socket.id) {
+          io.to(roomId).emit("user-left", socket.id);
+        }
+      });
+    });
   });
+
+  return io;
 };
-
-
-
 
 
 // // backend/src/Controllers/socketManager.js
