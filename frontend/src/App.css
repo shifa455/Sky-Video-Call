@@ -1,172 +1,87 @@
-/* Full Landing Page + App Styles */
-
-body, html {
-  margin: 0;
-  padding: 0;
-  font-family: 'Poppins', sans-serif;
-  color: white;
-  box-sizing: border-box;
-}
-
 .landingPageContainer {
   width: 100vw;
   height: 100vh;
-  background: url("/background.png") no-repeat center center;
+  background: url("/background.png"); /* fixed path */
+  background-repeat: no-repeat;
   background-size: cover;
+  color: white;
 }
 
-/* Navbar */
-.navBar {
+.landingPageContainer nav {
+  padding-inline: 1.2rem;
+  padding-block: 1.6rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 3rem;
 }
 
-.navBar .navHeader h2 {
-  font-size: 2rem;
-  font-weight: 600;
-}
-
-.navBar .navList {
-  display: flex;
-  gap: 2rem;
-}
-
-.navBar .navList p {
-  margin: 0;
-  cursor: pointer;
+.landingPageContainer nav h2 {
+  font-size: 1.8rem;
   font-weight: 500;
-  transition: color 0.3s;
 }
 
-.navBar .navList p:hover {
-  color: #FF9839;
+.landingPageContainer nav .navList {  /* fixed class name: navList */
+  display: flex;
+  gap: 1.6rem;
+  cursor: pointer;
 }
 
-/* Main landing content */
 .landingMainContainer {
   display: flex;
   justify-content: space-between;
+  padding-inline: 3rem;
+  height: 80vh;
   align-items: center;
-  height: calc(100vh - 80px);
-  padding: 0 5%;
 }
 
-.landingText {
-  max-width: 50%;
+.landingMainContainer > div:nth-child(1) {
+  font-size: 2.2rem;
 }
 
-.landingText h1 {
-  font-size: 3rem;
-  line-height: 1.2;
-  margin-bottom: 1rem;
-}
-
-.landingText h1 span {
-  color: #FF9839;
-}
-
-.landingText p {
-  font-size: 1.3rem;
-  margin-bottom: 2rem;
-}
-
-/* Get Started Button */
-.getStartedButton {
-  display: inline-block;
+.landingMainContainer > div:nth-child(1) .getStartedButton {
   background: #D97500;
-  color: white;
-  text-decoration: none;
   padding: 1rem 2rem;
   border-radius: 20px;
-  font-size: 1.5rem;
-  font-weight: bold;
-  transition: background 0.3s, transform 0.2s;
+  margin-top: 1.9rem;
+  text-decoration: none;
+  color: white;
+  font-size: 1.7rem;
 }
 
-.getStartedButton:hover {
-  background: #e07b2f;
-  transform: scale(1.05);
+.landingMainContainer > div:nth-child(2) img {
+  height: 70vh;
+  width: auto;
 }
 
-/* Landing Image */
-.landingImage img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 15px;
+.navBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 20px;
+  text-align: center;
 }
 
-/* Home / Meet Page */
 .meetContainer {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8%;
-  padding: 2rem;
+  padding-inline: 20px;
   height: 80vh;
-}
-
-.leftPanel, .rightPanel {
-  display: flex;
-  flex-direction: column;
+  gap: 10vw;
   justify-content: center;
 }
 
-.rightPanel img {
+.leftPanel {
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.rightPanel {
+  display: flex;
+  align-items: center;
+}
+
+.rightPanel > img {
   width: 30vw;
   height: auto;
-  border-radius: 15px;
-}
-
-/* Responsive */
-@media (max-width: 1024px) {
-  .landingMainContainer {
-    flex-direction: column-reverse;
-    align-items: center;
-    text-align: center;
-    gap: 2rem;
-  }
-
-  .landingText {
-    max-width: 90%;
-  }
-
-  .landingText h1 {
-    font-size: 2.2rem;
-  }
-
-  .landingText p {
-    font-size: 1.1rem;
-  }
-
-  .rightPanel img {
-    width: 80%;
-  }
-}
-
-@media (max-width: 480px) {
-  .navBar {
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1rem;
-  }
-
-  .navBar .navList {
-    flex-direction: column;
-    gap: 0.8rem;
-  }
-
-  .getStartedButton {
-    font-size: 1.3rem;
-    padding: 0.8rem 1.5rem;
-  }
-
-  .landingText h1 {
-    font-size: 1.8rem;
-  }
-
-  .landingText p {
-    font-size: 1rem;
-  }
+  border-radius: 20px;
 }
