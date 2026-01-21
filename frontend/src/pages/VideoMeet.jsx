@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from "react";
 import io from "socket.io-client";
 import {
@@ -47,25 +48,19 @@ export default function VideoMeetComponent() {
 
   const [snackbar, setSnackbar] = useState({ open: false, msg: "" });
 
-  /* ------------------ MEDIA ------------------ */
+  // ---------------- MEDIA ----------------
   const startLocalStream = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
-
     window.localStream = stream;
     localVideoRef.current.srcObject = stream;
   };
 
-  /* ------------------ SOCKET ------------------ */
+  // ---------------- SOCKET ----------------
   const connectSocket = () => {
     socketRef.current = io(server);
-
     const roomId = window.location.pathname.slice(1);
 
     socketRef.current.on("connect", () => {
@@ -73,17 +68,12 @@ export default function VideoMeetComponent() {
       socketRef.current.emit("join-call", roomId);
     });
 
-    socketRef.current.on("user-joined", (ids) => {
-      ids.forEach(createPeer);
-    });
-
+    socketRef.current.on("user-joined", (ids) => ids.forEach(createPeer));
     socketRef.current.on("signal", handleSignal);
 
     socketRef.current.on("user-left", (id) => {
-      if (peers[id]) {
-        peers[id].close();
-        delete peers[id];
-      }
+      if (peers[id]) peers[id].close();
+      delete peers[id];
       setVideos((prev) => prev.filter((v) => v.id !== id));
     });
 
@@ -93,16 +83,14 @@ export default function VideoMeetComponent() {
     });
   };
 
-  /* ------------------ WEBRTC ------------------ */
+  // ---------------- WEBRTC ----------------
   const createPeer = (id) => {
     if (id === socketIdRef.current || peers[id]) return peers[id];
 
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    window.localStream.getTracks().forEach((track) =>
-      peer.addTrack(track, window.localStream)
-    );
+    window.localStream.getTracks().forEach((track) => peer.addTrack(track, window.localStream));
 
     peer.onicecandidate = (e) => {
       if (e.candidate) socketRef.current.emit("signal", id, { ice: e.candidate });
@@ -125,9 +113,7 @@ export default function VideoMeetComponent() {
 
   const handleSignal = async ({ from, data }) => {
     if (from === socketIdRef.current) return;
-
-    let peer = peers[from];
-    if (!peer) peer = createPeer(from);
+    let peer = peers[from] || createPeer(from);
 
     if (data.sdp) {
       await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -141,7 +127,7 @@ export default function VideoMeetComponent() {
     if (data.ice) await peer.addIceCandidate(new RTCIceCandidate(data.ice));
   };
 
-  /* ------------------ CONTROLS ------------------ */
+  // ---------------- CONTROLS ----------------
   const toggleVideo = () => {
     window.localStream.getVideoTracks().forEach((t) => {
       t.enabled = !t.enabled;
@@ -158,19 +144,18 @@ export default function VideoMeetComponent() {
 
   const toggleScreen = async () => {
     if (screenSharing) return;
-
     const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
     const screenTrack = screenStream.getVideoTracks()[0];
 
     Object.values(peers).forEach((peer) => {
-      const sender = peer.getSenders().find((s) => s.track && s.track.kind === "video");
+      const sender = peer.getSenders().find((s) => s.track?.kind === "video");
       sender.replaceTrack(screenTrack);
     });
 
     screenTrack.onended = () => {
       const videoTrack = window.localStream.getVideoTracks()[0];
       Object.values(peers).forEach((peer) => {
-        const sender = peer.getSenders().find((s) => s.track && s.track.kind === "video");
+        const sender = peer.getSenders().find((s) => s.track?.kind === "video");
         sender.replaceTrack(videoTrack);
       });
       setScreenSharing(false);
@@ -202,14 +187,13 @@ export default function VideoMeetComponent() {
     connectSocket();
   };
 
-  /* ------------------ UI ------------------ */
+  // ---------------- UI ----------------
   if (askForUsername) {
     return (
       <div className={styles.lobby}>
         <h2>Enter your name</h2>
         <TextField value={username} onChange={(e) => setUsername(e.target.value)} />
         <Button variant="contained" onClick={connect}>Join</Button>
-        <video ref={localVideoRef} autoPlay muted />
         <Snackbar
           open={snackbar.open}
           message={snackbar.msg}
@@ -225,9 +209,7 @@ export default function VideoMeetComponent() {
       {showChat && (
         <div className={styles.chatRoom}>
           <h3>Chat</h3>
-          {messages.map((m, i) => (
-            <p key={i}><b>{m.sender}:</b> {m.msg}</p>
-          ))}
+          {messages.map((m, i) => <p key={i}><b>{m.sender}:</b> {m.msg}</p>)}
           <TextField value={message} onChange={(e) => setMessage(e.target.value)} />
           <Button onClick={sendMessage}>Send</Button>
         </div>
@@ -257,27 +239,19 @@ export default function VideoMeetComponent() {
         </Badge>
       </div>
 
-      <video className={styles.meetUserVideo} ref={localVideoRef} autoPlay muted />
-
       <div className={styles.conferenceView}>
         {videos.map((v) => (
           <video
             key={v.id}
             autoPlay
             playsInline
-            ref={(ref) => {
-              if (ref) {
-                ref.srcObject = v.stream;
-                ref.muted = false;
-              }
-            }}
+            ref={(ref) => { if (ref) ref.srcObject = v.stream; ref.muted = false; }}
           />
         ))}
       </div>
     </div>
   );
 }
-
 
 // import React, { useRef, useState } from "react";
 // import io from "socket.io-client";
@@ -575,5 +549,4 @@ export default function VideoMeetComponent() {
 //     </div>
 //   );
 // }
-=======
->>>>>>> ed174898ab2323b274f0557d693a0959f9a1b8fe
+
