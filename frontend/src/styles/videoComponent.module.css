@@ -99,36 +99,10 @@
   align-items: center;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .chatRoom {
-    width: 100vw;
-    height: 50vh;
-    bottom: 0;
-    right: 0;
-    border-radius: 0;
-  }
-
-  .remoteVideos video {
-    width: 90vw;
-    height: 25vh;
-  }
-
-  .localVideo {
-    height: 15vh;
-    bottom: 20vh;
-  }
-}
-
-
-
-
-
-
-/* .meetVideoContainer {
+.meetVideoContainer {
     position: relative;
     height: 100vh;
-    background: black;
+    background: rgb(1, 4, 48);
 }
 
 .meetUserVideo {
@@ -185,4 +159,4 @@
 .chattingArea {
     position: absolute;
     bottom: 0;
-} */
+}
