@@ -1,4 +1,133 @@
+/* Container for the whole video meeting */
 .meetVideoContainer {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    background: #010430; /* dark blue background */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Local user video (small, always visible) */
+.meetUserVideo {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    height: 20vh;
+    width: auto;
+    border-radius: 15px;
+    z-index: 10;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+/* Container for other participants' videos */
+.conferenceView {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 20px;
+    justify-content: center;
+    overflow-y: auto;
+    flex: 1; /* take remaining space */
+}
+
+/* Participant videos */
+.conferenceView video {
+    width: 40vw;
+    min-width: 250px;
+    max-height: 30vh;
+    border-radius: 10px;
+    background: black;
+    object-fit: cover;
+}
+
+/* Control buttons container */
+.buttonContainers {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    text-align: center;
+    padding: 10px 0;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+/* Make the icons bigger */
+.buttonContainers svg {
+    font-size: 2.5rem;
+    cursor: pointer;
+}
+
+/* Chat panel */
+.chatRoom {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 90vh;
+    width: 30vw;
+    max-width: 400px;
+    background: white;
+    border-radius: 10px 0 0 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+    z-index: 5;
+}
+
+/* Messages scrolling area */
+.chattingArea {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Chat input area */
+.chatRoom input, .chatRoom textarea {
+    margin-top: auto;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+/* Lobby (before username entered) */
+.lobby {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: #010430;
+    gap: 20px;
+}
+
+.lobby input {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+/* Videos on small screens */
+@media (max-width: 768px) {
+    .conferenceView video {
+        width: 80vw;
+        min-width: unset;
+        max-height: 25vh;
+    }
+
+    .chatRoom {
+        width: 70vw;
+    }
+}
+
+
+/* .meetVideoContainer {
     position: relative;
     height: 100vh;
     background: rgb(1, 4, 48);
@@ -58,4 +187,4 @@
 .chattingArea {
     position: absolute;
     bottom: 0;
-}
+} */
