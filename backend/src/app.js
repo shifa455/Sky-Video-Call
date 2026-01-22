@@ -1,4 +1,4 @@
-// backend/src/server.js
+// backend/src/app.js
 import express from "express";
 import { createServer } from "node:http";
 import mongoose from "mongoose";
@@ -9,10 +9,10 @@ import userRoutes from "./Routes/users.route.js";
 const app = express();
 const server = createServer(app);
 
-// Middleware
+// ----------------- MIDDLEWARE -----------------
 app.use(
   cors({
-    origin: "http://localhost:3000", // frontend URL
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -21,29 +21,33 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api/users", userRoutes); // keep user routes only
+// ----------------- ROUTES -----------------
+app.use("/api/users", userRoutes);
 
-app.get("/", (req, res) => res.send("Video Call Backend Running"));
+app.get("/", (req, res) => res.send("Sky Video Call Backend Running"));
 
-// Socket
+// ----------------- SOCKET.IO -----------------
 connectToSocket(server);
 
-// Start server + MongoDB
-const start = async () => {
+// ----------------- START SERVER + MONGO -----------------
+const startServer = async () => {
   try {
-    await mongoose.connect("YOUR_MONGO_URI", {
+    if (!process.env.MONGO_URI) {
+      throw new Error("MONGO_URI is not defined in environment variables");
+    }
+
+    await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log("MongoDB connected");
+    console.log("MongoDB connected ✅");
 
     const PORT = process.env.PORT || 8000;
-    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    server.listen(PORT, () => console.log(`Server running on port ${PORT} ✅`));
   } catch (err) {
-    console.error(err);
+    console.error("Error starting server:", err.message);
     process.exit(1);
   }
 };
 
-start();
+startServer();
