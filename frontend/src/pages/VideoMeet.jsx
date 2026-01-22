@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import io from "socket.io-client";
 import {
   IconButton,
@@ -21,10 +21,7 @@ import {
 import styles from "../styles/videoComponent.module.css";
 import server from "../environment";
 
-const peerConfig = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
-
+const peerConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 let peers = {};
 
 export default function VideoMeet() {
@@ -35,11 +32,12 @@ export default function VideoMeet() {
   const [username, setUsername] = useState("");
   const [askForUsername, setAskForUsername] = useState(true);
 
+  const [localStream, setLocalStream] = useState(null);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
 
-  const [videos, setVideos] = useState([]); // [{ id, stream }]
+  const [videos, setVideos] = useState([]); // remote streams
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [newMessages, setNewMessages] = useState(0);
@@ -51,29 +49,16 @@ export default function VideoMeet() {
   const startLocalStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        video: true,
+        audio: true,
       });
-
-      stream.getVideoTracks().forEach((t) => (t.enabled = true));
-      stream.getAudioTracks().forEach((t) => (t.enabled = true));
-
-      window.localStream = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      console.log("Local tracks:", {
-        video: stream.getVideoTracks().map((t) => t.getSettings()),
-        audio: stream.getAudioTracks().map((t) => t.getSettings()),
-      });
+      setLocalStream(stream);
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      setVideoEnabled(true);
+      setAudioEnabled(true);
     } catch (err) {
       console.error("Camera/Mic access error:", err);
       setSnackbar({ open: true, msg: "Camera/Mic access denied or unavailable" });
-      throw err;
     }
   };
 
@@ -87,7 +72,6 @@ export default function VideoMeet() {
       socketRef.current.emit("join-call", roomId);
     });
 
-    // Server sends list of other user IDs
     socketRef.current.on("user-joined", (ids) => {
       const idList = Array.isArray(ids) ? ids : [ids];
       idList.forEach((id) => {
@@ -95,15 +79,12 @@ export default function VideoMeet() {
       });
     });
 
-    // Keep signaling shape consistent: (fromId, data)
     socketRef.current.on("signal", (fromId, data) => {
       handleSignal(fromId, data);
     });
 
     socketRef.current.on("user-left", (id) => {
-      if (peers[id]) {
-        try { peers[id].close(); } catch {}
-      }
+      if (peers[id]) peers[id].close();
       delete peers[id];
       setVideos((prev) => prev.filter((v) => v.id !== id));
     });
@@ -122,10 +103,8 @@ export default function VideoMeet() {
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    if (window.localStream) {
-      window.localStream.getTracks().forEach((track) =>
-        peer.addTrack(track, window.localStream)
-      );
+    if (localStream) {
+      localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
     }
 
     peer.onicecandidate = (e) => {
@@ -175,43 +154,52 @@ export default function VideoMeet() {
 
   // ---------------- CONTROLS ----------------
   const toggleVideo = () => {
-    const tracks = window.localStream?.getVideoTracks() || [];
-    if (tracks.length > 0) {
-      const newState = !tracks[0].enabled;
-      tracks.forEach((t) => (t.enabled = newState));
-      setVideoEnabled(newState);
-    }
+    if (!localStream) return;
+    const track = localStream.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setVideoEnabled(track.enabled);
   };
 
   const toggleAudio = () => {
-    const tracks = window.localStream?.getAudioTracks() || [];
-    if (tracks.length > 0) {
-      const newState = !tracks[0].enabled;
-      tracks.forEach((t) => (t.enabled = newState));
-      setAudioEnabled(newState);
-    }
+    if (!localStream) return;
+    const track = localStream.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setAudioEnabled(track.enabled);
   };
 
   const toggleScreen = async () => {
-    if (screenSharing) return;
-    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    const screenTrack = screenStream.getVideoTracks()[0];
+    if (!localStream || screenSharing) return;
 
-    Object.values(peers).forEach((peer) => {
-      const sender = peer.getSenders().find((s) => s.track?.kind === "video");
-      if (sender) sender.replaceTrack(screenTrack);
-    });
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenTrack = screenStream.getVideoTracks()[0];
 
-    screenTrack.onended = () => {
-      const videoTrack = window.localStream.getVideoTracks()[0];
+      // Replace video track in all peers
       Object.values(peers).forEach((peer) => {
         const sender = peer.getSenders().find((s) => s.track?.kind === "video");
-        if (sender) sender.replaceTrack(videoTrack);
+        if (sender) sender.replaceTrack(screenTrack);
       });
-      setScreenSharing(false);
-    };
 
-    setScreenSharing(true);
+      // Show local screen preview
+      if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
+      setScreenSharing(true);
+
+      screenTrack.onended = () => {
+        // Restore camera
+        if (localStream) {
+          if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+          Object.values(peers).forEach((peer) => {
+            const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+            if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]);
+          });
+        }
+        setScreenSharing(false);
+      };
+    } catch (err) {
+      console.error("Screen share error:", err);
+    }
   };
 
   const sendMessage = () => {
@@ -223,9 +211,7 @@ export default function VideoMeet() {
   const endCall = () => {
     Object.values(peers).forEach((peer) => peer.close());
     peers = {};
-    if (window.localStream) {
-      window.localStream.getTracks().forEach((t) => t.stop());
-    }
+    if (localStream) localStream.getTracks().forEach((t) => t.stop());
     window.location.href = "/";
   };
 
@@ -237,6 +223,11 @@ export default function VideoMeet() {
     setAskForUsername(false);
     await startLocalStream();
     connectSocket();
+  };
+
+  const toggleChat = () => {
+    setShowChat((prev) => !prev);
+    if (!showChat) setNewMessages(0); // reset unread messages
   };
 
   // ---------------- UI ----------------
@@ -258,16 +249,16 @@ export default function VideoMeet() {
 
   return (
     <div className={styles.meetVideoContainer}>
-      {/* Local video preview */}
+      {/* Local video */}
       <video
         ref={localVideoRef}
         autoPlay
         muted
         playsInline
-        className={styles.meetUserVideo /* or styles.localVideo if you prefer */}
+        className={styles.meetUserVideo}
       />
 
-      {/* Chat panel */}
+      {/* Chat */}
       {showChat && (
         <div className={styles.chatRoom}>
           <h3>Chat</h3>
@@ -285,12 +276,11 @@ export default function VideoMeet() {
         </div>
       )}
 
-      {/* Control buttons */}
+      {/* Controls */}
       <div className={styles.buttonContainers}>
         <IconButton
           onClick={toggleVideo}
           style={{ color: videoEnabled ? "white" : "red" }}
-          aria-label="toggle video"
         >
           {videoEnabled ? <Videocam /> : <VideocamOff />}
         </IconButton>
@@ -298,48 +288,37 @@ export default function VideoMeet() {
         <IconButton
           onClick={toggleAudio}
           style={{ color: audioEnabled ? "white" : "red" }}
-          aria-label="toggle audio"
         >
           {audioEnabled ? <Mic /> : <MicOff />}
         </IconButton>
 
-        <IconButton onClick={toggleScreen} style={{ color: "white" }} aria-label="toggle screen share">
+        <IconButton onClick={toggleScreen} style={{ color: "white" }}>
           {screenSharing ? <StopScreenShare /> : <ScreenShare />}
         </IconButton>
 
-        <IconButton onClick={endCall} style={{ color: "red" }} aria-label="end call">
+        <IconButton onClick={endCall} style={{ color: "red" }}>
           <CallEnd />
         </IconButton>
 
         <Badge badgeContent={newMessages} color="error">
-          <IconButton onClick={() => setShowChat(!showChat)} style={{ color: "white" }} aria-label="toggle chat">
+          <IconButton onClick={toggleChat} style={{ color: "white" }}>
             <Chat />
           </IconButton>
         </Badge>
       </div>
 
-      {/* Remote videos + audio */}
+      {/* Remote videos */}
       <div className={styles.conferenceView}>
         {videos.map((v) => (
-          <div key={v.id} className={styles.remoteContainer}>
-            <video
-              autoPlay
-              playsInline
-              className={styles.remoteVideo}
-              ref={(ref) => {
-                if (ref) ref.srcObject = v.stream;
-              }}
-            />
-            {/* Separate audio element to ensure audio plays even if video is muted locally */}
-            <audio
-              id={`remote-${v.id}-audio`}
-              autoPlay
-              playsInline
-              ref={(ref) => {
-                if (ref) ref.srcObject = v.stream;
-              }}
-            />
-          </div>
+          <video
+            key={v.id}
+            autoPlay
+            playsInline
+            className={styles.remoteVideo}
+            ref={(ref) => {
+              if (ref) ref.srcObject = v.stream;
+            }}
+          />
         ))}
       </div>
     </div>
