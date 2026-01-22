@@ -1,16 +1,12 @@
-// backend/src/Controllers/socketManager.js
 import { Server } from "socket.io";
 
 let connections = {};
 let messages = {};
-let timeOnline = {};
 
 export const connectToSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: [
-        "https://sky-video-call-frontend.onrender.com", // frontend URL
-      ],
+      origin: ["https://sky-video-call-frontend.onrender.com"],
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -23,17 +19,19 @@ export const connectToSocket = (server) => {
     socket.on("join-call", (roomId) => {
       if (!connections[roomId]) connections[roomId] = [];
       connections[roomId].push(socket.id);
-      timeOnline[socket.id] = new Date();
 
-      // Notify all users in the room about the new user
-      connections[roomId].forEach((id) => {
-        io.to(id).emit("user-joined", socket.id, connections[roomId]);
-      });
+      const otherUsers = connections[roomId].filter(id => id !== socket.id);
 
-      // Send previous messages to the newly joined user
+      // Notify the new user about existing users
+      socket.emit("user-joined", otherUsers);
+
+      // Notify existing users about the new user
+      socket.to(roomId).emit("user-joined", [socket.id]);
+
+      // Send previous chat messages to new user
       if (messages[roomId]) {
         messages[roomId].forEach((msg) => {
-          io.to(socket.id).emit("chat-message", msg.data, msg.sender, msg.socketId);
+          socket.emit("chat-message", msg.data, msg.sender, msg.socketId);
         });
       }
     });
@@ -45,13 +43,7 @@ export const connectToSocket = (server) => {
 
     // Chat messages
     socket.on("chat-message", (data, sender) => {
-      let roomId = null;
-      for (const [key, users] of Object.entries(connections)) {
-        if (users.includes(socket.id)) {
-          roomId = key;
-          break;
-        }
-      }
+      const roomId = Object.keys(connections).find(r => connections[r].includes(socket.id));
       if (!roomId) return;
 
       if (!messages[roomId]) messages[roomId] = [];
@@ -65,7 +57,6 @@ export const connectToSocket = (server) => {
     // Disconnect
     socket.on("disconnect", () => {
       console.log("User disconnected:", socket.id);
-      delete timeOnline[socket.id];
 
       for (const [roomId, users] of Object.entries(connections)) {
         if (users.includes(socket.id)) {
