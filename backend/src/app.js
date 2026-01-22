@@ -1,4 +1,3 @@
-// backend/src/server.js
 import express from "express";
 import { createServer } from "node:http";
 import mongoose from "mongoose";
@@ -33,27 +32,29 @@ app.use("/api/v1/users", userRoutes);
 // Socket.io
 connectToSocket(server);
 
-// Start server + connect DB
+// MongoDB connection + offline fallback
 const start = async () => {
+  let mongoConnected = false;
+
   try {
     const connectionDb = await mongoose.connect(
-      "mongodb+srv://shifashaikh455:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/",
+      "mongodb+srv://shifashaikh455:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/skyVideoCall",
       {
         useNewUrlParser: true,
         useUnifiedTopology: true,
       }
     );
-
+    mongoConnected = true;
     console.log(`MongoDB Connected: ${connectionDb.connection.host}`);
-
-    const PORT = process.env.PORT || 8000;
-    server.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT}`);
-    });
   } catch (err) {
-    console.error("Error connecting to MongoDB:", err.message);
-    process.exit(1);
+    console.error("MongoDB offline, using memory storage:", err.message);
   }
+
+  const PORT = process.env.PORT || 8000;
+  server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+    console.log(mongoConnected ? "MongoDB Online" : "MongoDB Offline - using memory storage");
+  });
 };
 
 start();
