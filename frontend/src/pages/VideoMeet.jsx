@@ -183,4 +183,142 @@ export default function VideoMeet() {
         const sender = peer.getSenders().find((s) => s.track?.kind === "video");
         if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]);
       });
-      setScreenSharing(fals
+      setScreenSharing(false);
+      return;
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenTrack = screenStream.getVideoTracks()[0];
+
+      Object.values(peers).forEach((peer) => {
+        const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+        if (sender) sender.replaceTrack(screenTrack);
+      });
+
+      if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
+      setScreenSharing(true);
+
+      screenTrack.onended = () => {
+        if (localStream) {
+          if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+          Object.values(peers).forEach((peer) => {
+            const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+            if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]);
+          });
+        }
+        setScreenSharing(false);
+      };
+    } catch (err) {
+      console.error("Screen share error:", err);
+    }
+  };
+
+  const sendMessage = () => {
+    if (!message.trim()) return;
+    socketRef.current.emit("chat-message", message, username);
+    setMessage("");
+  };
+
+  const endCall = () => {
+    Object.values(peers).forEach((peer) => peer.close());
+    peers = {};
+    if (localStream) localStream.getTracks().forEach((t) => t.stop());
+    window.location.href = "/";
+  };
+
+  const connect = async () => {
+    if (!username.trim()) {
+      setSnackbar({ open: true, msg: "Enter username" });
+      return;
+    }
+    setAskForUsername(false);
+    await startLocalStream();
+    connectSocket();
+  };
+
+  const toggleChat = () => {
+    setShowChat((prev) => !prev);
+    if (!showChat) setNewMessages(0);
+  };
+
+  // ---------------- UI ----------------
+  if (askForUsername) {
+    return (
+      <div className={styles.lobby}>
+        <h2>Enter your name</h2>
+        <TextField value={username} onChange={(e) => setUsername(e.target.value)} />
+        <Button variant="contained" onClick={connect}>Join</Button>
+        <Snackbar
+          open={snackbar.open}
+          message={snackbar.msg}
+          autoHideDuration={3000}
+          onClose={() => setSnackbar({ open: false, msg: "" })}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.meetVideoContainer}>
+      <video
+        ref={localVideoRef}
+        autoPlay
+        muted
+        playsInline
+        className={styles.meetUserVideo}
+      />
+
+      {showChat && (
+        <div className={styles.chatRoom}>
+          <h3>Chat</h3>
+          <div className={styles.chattingArea}>
+            {messages.map((m, i) => (
+              <p key={i}><b>{m.sender}:</b> {m.msg}</p>
+            ))}
+          </div>
+          <TextField
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type a message"
+          />
+          <Button onClick={sendMessage}>Send</Button>
+        </div>
+      )}
+
+      <div className={styles.buttonContainers}>
+        <IconButton onClick={toggleVideo} style={{ color: videoEnabled ? "white" : "red" }}>
+          {videoEnabled ? <Videocam /> : <VideocamOff />}
+        </IconButton>
+        <IconButton onClick={toggleAudio} style={{ color: audioEnabled ? "white" : "red" }}>
+          {audioEnabled ? <Mic /> : <MicOff />}
+        </IconButton>
+        <IconButton onClick={toggleScreen} style={{ color: "white" }}>
+          {screenSharing ? <StopScreenShare /> : <ScreenShare />}
+        </IconButton>
+        <IconButton onClick={endCall} style={{ color: "red" }}>
+          <CallEnd />
+        </IconButton>
+        <Badge badgeContent={newMessages} color="error">
+          <IconButton onClick={toggleChat} style={{ color: "white" }}>
+            <Chat />
+          </IconButton>
+        </Badge>
+      </div>
+
+      <div className={styles.conferenceView}>
+        {videos.map((v) => (
+          <video
+            key={v.id}
+            autoPlay
+            playsInline
+            className={styles.remoteVideo}
+            ref={(ref) => {
+              if (ref) ref.srcObject = v.stream;
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
