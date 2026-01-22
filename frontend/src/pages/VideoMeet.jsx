@@ -28,9 +28,9 @@ const peerConfig = {
 let peers = {};
 
 export default function VideoMeet() {
-  const socketRef = useRef();
-  const localVideoRef = useRef();
-  const socketIdRef = useRef();
+  const socketRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const socketIdRef = useRef(null);
 
   const [username, setUsername] = useState("");
   const [askForUsername, setAskForUsername] = useState(true);
@@ -51,48 +51,59 @@ export default function VideoMeet() {
   const startLocalStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
       });
+
+      stream.getVideoTracks().forEach((t) => (t.enabled = true));
+      stream.getAudioTracks().forEach((t) => (t.enabled = true));
+
       window.localStream = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-      console.log("Audio tracks:", stream.getAudioTracks());
+      console.log("Local tracks:", {
+        video: stream.getVideoTracks().map((t) => t.getSettings()),
+        audio: stream.getAudioTracks().map((t) => t.getSettings()),
+      });
     } catch (err) {
       console.error("Camera/Mic access error:", err);
       setSnackbar({ open: true, msg: "Camera/Mic access denied or unavailable" });
+      throw err;
     }
   };
 
   // ---------------- SOCKET ----------------
   const connectSocket = () => {
-    socketRef.current = io(server);
-    const roomId = window.location.pathname.slice(1);
+    socketRef.current = io(server, { transports: ["websocket", "polling"] });
+    const roomId = window.location.pathname.slice(1) || "default";
 
     socketRef.current.on("connect", () => {
       socketIdRef.current = socketRef.current.id;
       socketRef.current.emit("join-call", roomId);
     });
 
-    // Server may emit (newUserId, allIds) or just an array
-    socketRef.current.on("user-joined", (newUserId, allIds) => {
-      const ids = Array.isArray(allIds)
-        ? allIds
-        : Array.isArray(newUserId)
-        ? newUserId
-        : [newUserId];
-      ids.forEach(createPeer);
+    // Server sends list of other user IDs
+    socketRef.current.on("user-joined", (ids) => {
+      const idList = Array.isArray(ids) ? ids : [ids];
+      idList.forEach((id) => {
+        if (id && id !== socketIdRef.current) createPeer(id);
+      });
     });
 
-    socketRef.current.on("signal", handleSignal);
+    // Keep signaling shape consistent: (fromId, data)
+    socketRef.current.on("signal", (fromId, data) => {
+      handleSignal(fromId, data);
+    });
 
     socketRef.current.on("user-left", (id) => {
-      if (peers[id]) peers[id].close();
+      if (peers[id]) {
+        try { peers[id].close(); } catch {}
+      }
       delete peers[id];
       setVideos((prev) => prev.filter((v) => v.id !== id));
     });
@@ -105,17 +116,22 @@ export default function VideoMeet() {
 
   // ---------------- WEBRTC ----------------
   const createPeer = (id) => {
-    if (id === socketIdRef.current || peers[id]) return peers[id];
+    if (id === socketIdRef.current) return peers[id];
+    if (peers[id]) return peers[id];
 
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    window.localStream.getTracks().forEach((track) =>
-      peer.addTrack(track, window.localStream)
-    );
+    if (window.localStream) {
+      window.localStream.getTracks().forEach((track) =>
+        peer.addTrack(track, window.localStream)
+      );
+    }
 
     peer.onicecandidate = (e) => {
-      if (e.candidate) socketRef.current.emit("signal", id, { ice: e.candidate });
+      if (e.candidate) {
+        socketRef.current.emit("signal", id, { ice: e.candidate });
+      }
     };
 
     peer.ontrack = (e) => {
@@ -125,49 +141,55 @@ export default function VideoMeet() {
       });
     };
 
-    peer.createOffer().then((offer) => {
-      peer.setLocalDescription(offer);
-      socketRef.current.emit("signal", id, { sdp: offer });
-    });
+    peer.createOffer()
+      .then((offer) => peer.setLocalDescription(offer))
+      .then(() => {
+        socketRef.current.emit("signal", id, { sdp: peer.localDescription });
+      })
+      .catch((err) => console.error("Offer error:", err));
 
     return peer;
   };
 
-  const handleSignal = async ({ from, data }) => {
-    if (from === socketIdRef.current) return;
-    const peer = peers[from] || createPeer(from);
+  const handleSignal = async (fromId, data) => {
+    if (fromId === socketIdRef.current) return;
 
-    if (data.sdp) {
-      await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
-      if (data.sdp.type === "offer") {
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        socketRef.current.emit("signal", from, { sdp: answer });
+    const peer = peers[fromId] || createPeer(fromId);
+
+    try {
+      if (data.sdp) {
+        await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if (data.sdp.type === "offer") {
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          socketRef.current.emit("signal", fromId, { sdp: peer.localDescription });
+        }
       }
-    }
-
-    if (data.ice) {
-      try {
+      if (data.ice) {
         await peer.addIceCandidate(new RTCIceCandidate(data.ice));
-      } catch (err) {
-        console.error("Failed to add ICE candidate:", err);
       }
+    } catch (err) {
+      console.error("Signal handling error:", err);
     }
   };
 
   // ---------------- CONTROLS ----------------
   const toggleVideo = () => {
-    window.localStream.getVideoTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-      setVideoEnabled(t.enabled);
-    });
+    const tracks = window.localStream?.getVideoTracks() || [];
+    if (tracks.length > 0) {
+      const newState = !tracks[0].enabled;
+      tracks.forEach((t) => (t.enabled = newState));
+      setVideoEnabled(newState);
+    }
   };
 
   const toggleAudio = () => {
-    window.localStream.getAudioTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-      setAudioEnabled(t.enabled);
-    });
+    const tracks = window.localStream?.getAudioTracks() || [];
+    if (tracks.length > 0) {
+      const newState = !tracks[0].enabled;
+      tracks.forEach((t) => (t.enabled = newState));
+      setAudioEnabled(newState);
+    }
   };
 
   const toggleScreen = async () => {
@@ -201,7 +223,9 @@ export default function VideoMeet() {
   const endCall = () => {
     Object.values(peers).forEach((peer) => peer.close());
     peers = {};
-    window.localStream.getTracks().forEach((t) => t.stop());
+    if (window.localStream) {
+      window.localStream.getTracks().forEach((t) => t.stop());
+    }
     window.location.href = "/";
   };
 
@@ -240,41 +264,55 @@ export default function VideoMeet() {
         autoPlay
         muted
         playsInline
-        className={styles.localVideo}
+        className={styles.meetUserVideo /* or styles.localVideo if you prefer */}
       />
 
       {/* Chat panel */}
       {showChat && (
         <div className={styles.chatRoom}>
           <h3>Chat</h3>
-          {messages.map((m, i) => (
-            <p key={i}><b>{m.sender}:</b> {m.msg}</p>
-          ))}
-          <TextField value={message} onChange={(e) => setMessage(e.target.value)} />
+          <div className={styles.chattingArea}>
+            {messages.map((m, i) => (
+              <p key={i}><b>{m.sender}:</b> {m.msg}</p>
+            ))}
+          </div>
+          <TextField
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type a message"
+          />
           <Button onClick={sendMessage}>Send</Button>
         </div>
       )}
 
       {/* Control buttons */}
       <div className={styles.buttonContainers}>
-        <IconButton onClick={toggleVideo} style={{ color: "white" }}>
+        <IconButton
+          onClick={toggleVideo}
+          style={{ color: videoEnabled ? "white" : "red" }}
+          aria-label="toggle video"
+        >
           {videoEnabled ? <Videocam /> : <VideocamOff />}
         </IconButton>
 
-        <IconButton onClick={toggleAudio} style={{ color: "white" }}>
+        <IconButton
+          onClick={toggleAudio}
+          style={{ color: audioEnabled ? "white" : "red" }}
+          aria-label="toggle audio"
+        >
           {audioEnabled ? <Mic /> : <MicOff />}
         </IconButton>
 
-        <IconButton onClick={toggleScreen} style={{ color: "white" }}>
+        <IconButton onClick={toggleScreen} style={{ color: "white" }} aria-label="toggle screen share">
           {screenSharing ? <StopScreenShare /> : <ScreenShare />}
         </IconButton>
 
-        <IconButton onClick={endCall} style={{ color: "red" }}>
+        <IconButton onClick={endCall} style={{ color: "red" }} aria-label="end call">
           <CallEnd />
         </IconButton>
 
         <Badge badgeContent={newMessages} color="error">
-          <IconButton onClick={() => setShowChat(!showChat)} style={{ color: "white" }}>
+          <IconButton onClick={() => setShowChat(!showChat)} style={{ color: "white" }} aria-label="toggle chat">
             <Chat />
           </IconButton>
         </Badge>
@@ -292,7 +330,9 @@ export default function VideoMeet() {
                 if (ref) ref.srcObject = v.stream;
               }}
             />
+            {/* Separate audio element to ensure audio plays even if video is muted locally */}
             <audio
+              id={`remote-${v.id}-audio`}
               autoPlay
               playsInline
               ref={(ref) => {
