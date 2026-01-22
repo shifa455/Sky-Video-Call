@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import io from "socket.io-client";
 import {
   IconButton,
@@ -56,8 +56,15 @@ export default function VideoMeet() {
       setLocalStream(stream);
 
       if (localVideoRef.current) {
+        localVideoRef.current.muted = true;        // required for autoplay
+        localVideoRef.current.playsInline = true;  // prevent fullscreen on mobile
         localVideoRef.current.srcObject = stream;
-        await localVideoRef.current.play().catch(() => {}); // Edge fix
+
+        // Firefox/Edge may need explicit play
+        const playPromise = localVideoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => console.warn("Video play failed"));
+        }
       }
 
       setVideoEnabled(true);
@@ -107,9 +114,7 @@ export default function VideoMeet() {
     const peer = new RTCPeerConnection(peerConfig);
     peers[id] = peer;
 
-    if (localStream) {
-      localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
-    }
+    if (localStream) localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
 
     peer.onicecandidate = (e) => {
       if (e.candidate) socketRef.current.emit("signal", id, { ice: e.candidate });
@@ -132,7 +137,6 @@ export default function VideoMeet() {
 
   const handleSignal = async (fromId, data) => {
     if (fromId === socketIdRef.current) return;
-
     const peer = peers[fromId] || createPeer(fromId);
 
     try {
@@ -158,7 +162,7 @@ export default function VideoMeet() {
     track.enabled = !track.enabled;
     setVideoEnabled(track.enabled);
 
-    // Force refresh for Edge
+    // Edge/Firefox fix
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
       localVideoRef.current.srcObject = localStream;
@@ -177,7 +181,6 @@ export default function VideoMeet() {
     if (!localStream) return;
 
     if (screenSharing) {
-      // Stop screen share manually
       if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
       Object.values(peers).forEach((peer) => {
         const sender = peer.getSenders().find((s) => s.track?.kind === "video");
