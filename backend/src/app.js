@@ -6,7 +6,6 @@ import cors from "cors";
 import { connectToSocket } from "./Controllers/socketManager.js";
 import userRoutes from "./Routes/users.route.js";
 
-
 const app = express();
 const server = createServer(app);
 
@@ -23,8 +22,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use("/api/users", userRoutes);
-app.use("/api/meetings", meetingRoutes);
+app.use("/api/users", userRoutes); // keep user routes only
 
 app.get("/", (req, res) => res.send("Video Call Backend Running"));
 
