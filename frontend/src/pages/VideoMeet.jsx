@@ -1,10 +1,10 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import io from "socket.io-client";
 import { IconButton, Badge, TextField, Button, Snackbar } from "@mui/material";
 import { Videocam, VideocamOff, Mic, MicOff, CallEnd, ScreenShare, StopScreenShare, Chat } from "@mui/icons-material";
 import styles from "../styles/videoComponent.module.css";
 
-// ICE servers: STUN + demo TURN for Edge/Firefox
+// ICE servers for Chrome/Edge/Firefox
 const peerConfig = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -32,28 +32,32 @@ export default function VideoMeet() {
   const [showChat, setShowChat] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, msg: "" });
 
+  // ------------------- UTIL -------------------
   const attachStream = async (videoEl, stream, muted = false) => {
     if (!videoEl || !stream) return;
-    videoEl.srcObject = null;
     videoEl.srcObject = stream;
     videoEl.muted = muted;
     videoEl.playsInline = true;
-    try { await videoEl.play(); } catch (e) { console.warn("Video play failed", e); }
+    try { await videoEl.play(); } catch {}
   };
 
+  // ------------------- LOCAL MEDIA -------------------
   const startLocalStream = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
       setLocalStream(stream);
       await attachStream(localVideoRef.current, stream, true);
       setVideoEnabled(true);
       setAudioEnabled(true);
     } catch (err) {
-      console.error(err);
       setSnackbar({ open: true, msg: "Camera/Mic access denied" });
     }
   };
 
+  // ------------------- SOCKET -------------------
   const connectSocket = () => {
     socketRef.current = io("http://localhost:5000", { transports: ["websocket", "polling"] });
     const roomId = window.location.pathname.slice(1) || "default";
@@ -72,6 +76,7 @@ export default function VideoMeet() {
     socketRef.current.on("chat-message", (msg, sender, senderId) => { setMessages(prev => [...prev, { msg, sender }]); if (senderId !== socketIdRef.current) setNewMessages(n => n + 1); });
   };
 
+  // ------------------- WEBRTC -------------------
   const createPeer = (id) => {
     if (id === socketIdRef.current) return peers[id];
     if (peers[id]) return peers[id];
@@ -103,26 +108,57 @@ export default function VideoMeet() {
     } catch (err) { console.error(err); }
   };
 
-  const toggleVideo = () => { if (!localStream) return; const track = localStream.getVideoTracks()[0]; if (!track) return; track.enabled = !track.enabled; setVideoEnabled(track.enabled); attachStream(localVideoRef.current, localStream, true); };
-  const toggleAudio = () => { if (!localStream) return; const track = localStream.getAudioTracks()[0]; if (!track) return; track.enabled = !track.enabled; setAudioEnabled(track.enabled); };
+  // ------------------- CONTROLS -------------------
+  const toggleVideo = () => {
+    if (!localStream) return;
+    const track = localStream.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setVideoEnabled(track.enabled);
+  };
+  const toggleAudio = () => {
+    if (!localStream) return;
+    const track = localStream.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setAudioEnabled(track.enabled);
+  };
   const toggleScreen = async () => {
     if (!localStream) return;
-    if (screenSharing) { attachStream(localVideoRef.current, localStream, true); Object.values(peers).forEach(peer => { const sender = peer.getSenders().find(s => s.track?.kind === "video"); if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]); }); setScreenSharing(false); return; }
+    if (screenSharing) {
+      Object.values(peers).forEach(peer => {
+        const sender = peer.getSenders().find(s => s.track?.kind === "video");
+        if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]);
+      });
+      attachStream(localVideoRef.current, localStream, true);
+      setScreenSharing(false);
+      return;
+    }
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       const screenTrack = screenStream.getVideoTracks()[0];
-      Object.values(peers).forEach(peer => { const sender = peer.getSenders().find(s => s.track?.kind === "video"); if (sender) sender.replaceTrack(screenTrack); });
+      Object.values(peers).forEach(peer => {
+        const sender = peer.getSenders().find(s => s.track?.kind === "video");
+        if (sender) sender.replaceTrack(screenTrack);
+      });
       attachStream(localVideoRef.current, screenStream, true);
       setScreenSharing(true);
-      screenTrack.onended = () => { attachStream(localVideoRef.current, localStream, true); Object.values(peers).forEach(peer => { const sender = peer.getSenders().find(s => s.track?.kind === "video"); if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]); }); setScreenSharing(false); };
+      screenTrack.onended = () => {
+        Object.values(peers).forEach(peer => {
+          const sender = peer.getSenders().find(s => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(localStream.getVideoTracks()[0]);
+        });
+        attachStream(localVideoRef.current, localStream, true);
+        setScreenSharing(false);
+      };
     } catch (err) { console.error(err); }
   };
-
   const sendMessage = () => { if (!message.trim()) return; socketRef.current.emit("chat-message", message, username); setMessage(""); };
   const endCall = () => { Object.values(peers).forEach(peer => peer.close()); peers = {}; if (localStream) localStream.getTracks().forEach(t => t.stop()); window.location.href = "/"; };
   const connect = async () => { if (!username.trim()) { setSnackbar({ open: true, msg: "Enter username" }); return; } setAskForUsername(false); await startLocalStream(); connectSocket(); };
   const toggleChat = () => { setShowChat(prev => !prev); if (!showChat) setNewMessages(0); };
 
+  // ------------------- UI -------------------
   if (askForUsername) return (
     <div className={styles.lobby}>
       <h2>Enter your name</h2>
