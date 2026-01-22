@@ -12,7 +12,7 @@ const server = createServer(app);
 // ----------------- MIDDLEWARE -----------------
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: "https://sky-video-call-frontend.onrender.com", // your frontend URL
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -32,18 +32,18 @@ connectToSocket(server);
 // ----------------- START SERVER + MONGO -----------------
 const startServer = async () => {
   try {
-    if (!process.env.MONGO_URI) {
-      throw new Error("MONGO_URI is not defined in environment variables");
-    }
+    // <-- Hardcode your MongoDB URI here -->
+    const mongoURI =
+      "mongodb+srv://shifa423:sRFfn8pQegK4y9lM@zoom-clone-cluster.wn91exf.mongodb.net/video_call_db?retryWrites=true&w=majority";
 
-    await mongoose.connect(process.env.MONGO_URI, {
+    await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log("MongoDB connected ✅");
+    console.log("MongoDB connected ");
 
     const PORT = process.env.PORT || 8000;
-    server.listen(PORT, () => console.log(`Server running on port ${PORT} ✅`));
+    server.listen(PORT, () => console.log(`Server running on port ${PORT} `));
   } catch (err) {
     console.error("Error starting server:", err.message);
     process.exit(1);
