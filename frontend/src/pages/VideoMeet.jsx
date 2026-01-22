@@ -4,11 +4,11 @@ import { IconButton, Badge, TextField, Button, Snackbar } from "@mui/material";
 import { Videocam, VideocamOff, Mic, MicOff, CallEnd, ScreenShare, StopScreenShare, Chat } from "@mui/icons-material";
 import styles from "../styles/videoComponent.module.css";
 
-// STUN server (TURN optional)
+// ICE servers: STUN + demo TURN for Edge/Firefox
 const peerConfig = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
-    // { urls: "turn:YOUR_TURN_SERVER", username: "user", credential: "pass" }
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" }
   ]
 };
 
@@ -38,18 +38,18 @@ export default function VideoMeet() {
     videoEl.srcObject = stream;
     videoEl.muted = muted;
     videoEl.playsInline = true;
-    try { await videoEl.play(); } catch (e) { console.warn("play failed", e); }
+    try { await videoEl.play(); } catch (e) { console.warn("Video play failed", e); }
   };
 
   const startLocalStream = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setLocalStream(stream);
       await attachStream(localVideoRef.current, stream, true);
       setVideoEnabled(true);
       setAudioEnabled(true);
     } catch (err) {
-      console.error("Camera/Mic error:", err);
+      console.error(err);
       setSnackbar({ open: true, msg: "Camera/Mic access denied" });
     }
   };
@@ -63,7 +63,7 @@ export default function VideoMeet() {
       socketRef.current.emit("join-call", roomId);
     });
 
-    socketRef.current.on("user-joined", (ids) => { (Array.isArray(ids) ? ids : [ids]).forEach(id => { if (id !== socketIdRef.current) createPeer(id); }); });
+    socketRef.current.on("user-joined", ids => (Array.isArray(ids) ? ids : [ids]).forEach(id => { if (id !== socketIdRef.current) createPeer(id); }));
 
     socketRef.current.on("signal", (fromId, data) => handleSignal(fromId, data));
 
