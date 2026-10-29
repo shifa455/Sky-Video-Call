@@ -1,6 +1,6 @@
 Sky Video Call
 
-A full-stack video calling application built with **React**, **Socket.IO**, **Node.js**, and **MongoDB**.  
+A full-stack video calling application built with **React**, **Socket.IO**, **Node.js**, and **MongoDB**.
 Supports video, audio, screen sharing, and chat in real-time.
 
 
